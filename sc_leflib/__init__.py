@@ -1,17 +1,49 @@
+import logging
+
 from ._leflib import parse as _parse
+from ._leflib import LefParseError
 
 try:
     from sc_leflib._version import __version__
 except ImportError:
     __version__ = None
 
+__all__ = ['parse', 'LefParseError']
+
+# Warnings and info messages from the LEF parser are logged to the 'sc_leflib'
+# logger. As recommended for libraries, nothing is printed unless the
+# application configures logging.
+logging.getLogger(__name__).addHandler(logging.NullHandler())
+
 
 def parse(path):
     ''' Parses LEF file.
 
     Given a path to a LEF file, this function parses the file and returns a
-    dictionary representing the contents of the LEF file. If there's an error
-    while reading or parsing the file, this function returns None instead.
+    dictionary representing the contents of the LEF file.
+
+    The file is opened with Python's :func:`open`, so failing to open or read
+    it raises the same :class:`OSError` subclass that :func:`open` would raise
+    (e.g. :class:`FileNotFoundError`, :class:`PermissionError` or
+    :class:`IsADirectoryError`), with ``errno``, ``strerror`` and ``filename``
+    set. If the LEF parser rejects the file, :class:`LefParseError` is raised.
+    It carries the parser's message, the file name and, where available, the
+    line number.
+
+    Nothing is printed to stdout or stderr. Warnings and informational
+    messages from the parser are sent to the ``sc_leflib`` logger (see
+    :mod:`logging`) at ``WARNING`` and ``INFO`` level. Each log record has the
+    extra attributes ``lef_filename``, ``lef_lineno`` and ``lef_code`` (the
+    parser's message number, the ``n`` in ``LEFPARS-n``). Errors that the
+    parser reports without rejecting the file are logged at ``ERROR`` level.
+    The ``sc_leflib`` logger has a :class:`logging.NullHandler`, so these
+    messages are only shown if the application configures logging, e.g. with
+    :func:`logging.basicConfig`.
+
+    .. versionchanged:: 0.6
+        Errors raise exceptions instead of returning ``None``, and messages
+        go to the ``sc_leflib`` logger instead of stdout/stderr.
+        ``os.PathLike`` paths are accepted.
 
     Note that this function does not return all information contained in the
     LEF. The subset of information returned includes:
@@ -165,7 +197,17 @@ def parse(path):
     present in the dictionary.
 
     Args:
-        path (str): Path to LEF file to parse.
+        path (str, bytes or os.PathLike): Path to LEF file to parse.
+
+    Returns:
+        dict: Contents of the LEF file, as described above.
+
+    Raises:
+        OSError: If the file can't be opened or read. The subclass and
+            attributes match what :func:`open` raises.
+        LefParseError: If the LEF parser rejects the file (e.g. because of a
+            syntax error).
+        TypeError: If ``path`` is not a str, bytes or os.PathLike object.
     '''
 
     return _parse(path)
